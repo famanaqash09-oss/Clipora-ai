@@ -43,10 +43,19 @@ tab1, tab2, tab3 = st.tabs(
 with tab1:
     st.header("AI Clipper")
     st.markdown(
-        '<div class="card">Turn long videos into short vertical clips. '
-        "This tool is built in Phase 3.</div>",
+        '<div class="card">Upload a video. Automatic clipping is added in the next step.</div>',
         unsafe_allow_html=True,
     )
+
+    uploaded = st.file_uploader(
+        "Upload your video",
+        type=["mp4", "mov", "m4v", "webm"],
+    )
+
+    if uploaded is not None:
+        size_mb = uploaded.size / (1024 * 1024)
+        st.success(f"Received: {uploaded.name} ({size_mb:.1f} MB)")
+        st.video(uploaded)
 
 with tab2:
     st.header("AI Video Generator")
