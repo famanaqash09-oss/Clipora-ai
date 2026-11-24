@@ -1,6 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import html, base64, io, json
+import html, base64, io, json, random
 from datetime import datetime
 from urllib.parse import quote_plus
 from PIL import Image, ImageOps
@@ -44,6 +44,8 @@ PALETTES = {
 }
 
 LAYOUTS = {"Modern": "l-modern", "Elegant": "l-elegant", "Bold": "l-bold"}
+FESTIVE = ["None", "Christmas", "New Year"]
+BOOK_MODES = ["WhatsApp", "Email", "Hide booking form"]
 
 
 def hex_to_rgb(h):
@@ -100,15 +102,23 @@ TEMPLATE = """<!DOCTYPE html>
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--tx);line-height:1.65;padding-bottom:72px}
-nav{position:sticky;top:0;z-index:10;background:var(--bg);box-shadow:0 2px 12px rgba(0,0,0,.14);display:flex;justify-content:space-between;align-items:center;padding:12px 18px}
+nav{position:sticky;top:0;z-index:10;background:var(--bg);box-shadow:0 2px 12px rgba(0,0,0,.14);display:flex;justify-content:space-between;align-items:center;padding:10px 18px}
 .logo{font-weight:800;color:var(--pt);font-size:1.05rem}
+.logo img{height:40px;width:auto;display:block;border-radius:6px}
 nav .links a{margin-left:16px;color:var(--tx);text-decoration:none;font-size:.92rem}
 .btn{display:inline-block;padding:13px 28px;border-radius:40px;text-decoration:none;font-weight:700;margin:6px}
 .btn-main{background:var(--s);color:var(--ons)}
 .btn-alt{border:2px solid #fff;color:#fff}
-header.hero{min-height:78vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#fff;padding:50px 20px;background-size:cover;background-position:center;border-bottom:6px solid var(--s)}
+header.hero{position:relative;overflow:hidden;min-height:78vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#fff;padding:50px 20px;background-size:cover;background-position:center;border-bottom:6px solid var(--s)}
+header.hero>*{position:relative;z-index:1}
+header.hero>.snow{position:absolute;inset:0;z-index:0;pointer-events:none}
 header.hero h1{font-size:2.6rem;line-height:1.15;margin-bottom:12px;max-width:760px;text-shadow:0 2px 12px rgba(0,0,0,.35)}
 header.hero p{font-size:1.15rem;margin-bottom:22px;max-width:620px;text-shadow:0 2px 12px rgba(0,0,0,.35)}
+.greet{display:inline-block;padding:7px 18px;border:1px solid rgba(255,255,255,.65);border-radius:30px;margin-bottom:18px;font-size:.9rem;letter-spacing:.08em;text-transform:uppercase;background:rgba(255,255,255,.14)}
+.promo{display:inline-block;margin:0 0 22px;padding:10px 20px;border-radius:14px;background:var(--s);color:var(--ons);font-weight:800;max-width:520px;text-shadow:none}
+.snow i{position:absolute;top:-30px;color:#fff;font-style:normal;animation-name:fall;animation-timing-function:linear;animation-iteration-count:infinite}
+@keyframes fall{to{transform:translateY(110vh) rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.snow i{animation:none;top:20%}}
 .wrap{max-width:1000px;margin:auto;padding:60px 20px}
 .alt{background:var(--soft)}
 h2{color:var(--pt);font-size:1.8rem;margin-bottom:26px;text-align:center}
@@ -123,6 +133,11 @@ h2::after{content:"";display:block;width:64px;height:4px;border-radius:4px;margi
 .review p{font-style:italic;margin-bottom:10px}
 .review span{color:var(--stx);font-weight:700}
 .stars{color:#f59e0b;letter-spacing:2px;margin-bottom:8px}
+.bk{max-width:560px;margin:auto;display:grid;gap:12px}
+.bk input,.bk select,.bk textarea{width:100%;padding:13px 14px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);font-family:inherit;font-size:16px}
+.bk .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.bk .send{border:0;cursor:pointer;background:var(--p);color:var(--onp);font-family:inherit;font-size:1rem;font-weight:700;padding:15px;border-radius:40px}
+.bk .note{font-size:.85rem;opacity:.75;text-align:center}
 .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px}
 .hours div{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--bd)}
 .info p{margin-bottom:10px}
@@ -143,6 +158,7 @@ footer a{color:#fff;margin:0 8px}
 .l-elegant .review{box-shadow:none;border-radius:4px}
 .l-elegant .gallery img{border-radius:2px}
 .l-elegant .btn{border-radius:2px;letter-spacing:.08em;text-transform:uppercase;font-size:.9rem}
+.l-elegant .bk input,.l-elegant .bk select,.l-elegant .bk textarea,.l-elegant .bk .send{border-radius:2px}
 
 .l-bold header.hero{align-items:flex-start;text-align:left;padding:60px 8%}
 .l-bold header.hero h1{font-size:3.2rem;font-weight:900;text-transform:uppercase;letter-spacing:-.5px}
@@ -153,20 +169,25 @@ footer a{color:#fff;margin:0 8px}
 .l-bold .review{border-radius:6px;border-left:6px solid var(--s)}
 .l-bold .gallery img{border-radius:4px}
 .l-bold .btn{border-radius:6px}
+.l-bold .bk input,.l-bold .bk select,.l-bold .bk textarea,.l-bold .bk .send{border-radius:6px}
 
 @media(max-width:600px){nav .links{display:none}header.hero h1{font-size:2rem}.l-bold header.hero h1{font-size:2.3rem}}
 @media(min-width:900px){.bar{display:none}body{padding-bottom:0}}
 </style></head>
 <body class="__BODYCLASS__">
-<nav><div class="logo">__NAME__</div><div class="links">__NAVLINKS__</div></nav>
+<nav><div class="logo">__LOGO__</div><div class="links">__NAVLINKS__</div></nav>
 <header class="hero" style="__HEROSTYLE__">
+__SNOW__
+__GREET__
 <h1>__NAME__</h1><p>__TAGLINE__</p>
+__PROMO__
 <div>__HEROBTNS__</div>
 </header>
 <div class="wrap" id="about"><h2>About us</h2><p class="about">__ABOUT__</p></div>
 __SERVICES__
 __GALLERY__
 __REVIEWS__
+__BOOKING__
 <div class="alt" id="contact"><div class="wrap"><h2>Visit us</h2>
 <div class="two">
 <div class="info">__CONTACT__</div>
@@ -174,7 +195,28 @@ __REVIEWS__
 </div></div></div>
 <footer><p>&copy; __YEAR__ __NAME__. All rights reserved.</p><p style="margin-top:8px">__SOCIAL__</p></footer>
 <div class="bar">__BAR__</div>
+__BOOKSCRIPT__
 </body></html>"""
+
+BOOK_JS = r"""<script>
+(function(){
+var BIZ=__BIZ__,DEST=__DEST__,MODE=__MODE__;
+var d=document.getElementById("bk_date");
+if(d){var t=new Date();var m=("0"+(t.getMonth()+1)).slice(-2);var day=("0"+t.getDate()).slice(-2);d.min=t.getFullYear()+"-"+m+"-"+day;}
+var f=document.getElementById("bk");
+if(!f){return;}
+f.addEventListener("submit",function(e){
+e.preventDefault();
+function g(i){return document.getElementById(i).value.trim();}
+var msg="Hi "+BIZ+"! I'd like to book an appointment.\n\nName: "+g("bk_name")+"\nPhone: "+g("bk_phone")+"\nService: "+g("bk_service")+"\nDate: "+g("bk_date")+"\nTime: "+g("bk_time");
+if(g("bk_note")){msg+="\nNote: "+g("bk_note");}
+var url;
+if(MODE==="wa"){url="https://wa.me/"+DEST+"?text="+encodeURIComponent(msg);}
+else{url="mailto:"+DEST+"?subject="+encodeURIComponent("Booking request from "+g("bk_name"))+"&body="+encodeURIComponent(msg);}
+var a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();document.body.removeChild(a);
+});
+})();
+</script>"""
 
 
 def img_to_data_uri(file, max_px=1400):
@@ -186,6 +228,15 @@ def img_to_data_uri(file, max_px=1400):
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
+def logo_to_data_uri(file, max_px=480):
+    img = Image.open(file)
+    img = ImageOps.exif_transpose(img).convert("RGBA")
+    img.thumbnail((max_px, max_px))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
 def safe_url(u):
     u = (u or "").strip()
     if u.startswith(("http://", "https://")):
@@ -193,7 +244,22 @@ def safe_url(u):
     return ""
 
 
-def build_site(d, hero_uri, gallery_uris):
+def make_snow(char):
+    rnd = random.Random(7)
+    flakes = "".join(
+        f'<i style="left:{rnd.randint(0, 98)}%;font-size:{rnd.randint(10, 22)}px;'
+        f'animation-duration:{rnd.randint(7, 15)}s;animation-delay:-{rnd.randint(0, 12)}s;'
+        f'opacity:{rnd.choice([0.5, 0.7, 0.9])}">{char}</i>'
+        for _ in range(30)
+    )
+    return f'<div class="snow">{flakes}</div>'
+
+
+def js_str(value):
+    return json.dumps(value).replace("<", "\\u003c")
+
+
+def build_site(d, hero_uri, gallery_uris, logo_uri):
     esc = html.escape
     raw_name = d["name"].strip() or "Your Business"
     name = esc(raw_name)
@@ -229,21 +295,12 @@ def build_site(d, hero_uri, gallery_uris):
         + ". We are proud to serve our community with quality and care."
     )
 
-    book = safe_url(d["booking_url"])
-    nav_links = ['<a href="#about">About</a>']
-    hero_btns = ""
-    bar = ""
-    if book:
-        hero_btns += f'<a class="btn btn-main" href="{book}">Book now</a>'
-        bar += f'<a class="a1" href="{book}">Book now</a>'
-    if phone_link:
-        hero_btns += f'<a class="btn btn-alt" href="tel:{phone_link}">Call {phone}</a>'
-        bar += f'<a class="a2" href="tel:{phone_link}">Call now</a>'
-    if not hero_btns:
-        hero_btns = '<a class="btn btn-main" href="#contact">Contact us</a>'
-        bar = '<a class="a1" href="#contact">Contact us</a>'
+    if logo_uri:
+        logo_html = f'<img src="{logo_uri}" alt="{name}">'
+    else:
+        logo_html = name
 
-    # Services
+    # Services (parsed early because the booking form uses them)
     services = []
     for line in d["services"].splitlines():
         line = line.strip()
@@ -254,259 +311,55 @@ def build_site(d, hero_uri, gallery_uris):
         else:
             n, pr = line, ""
         services.append((esc(n.strip()), esc(pr.strip())))
-    services_html = ""
-    if services:
-        nav_links.append('<a href="#services">Services</a>')
-        cards = "".join(
-            f'<div class="card"><b>{n}</b><span class="price">{pr}</span></div>'
-            for n, pr in services
+
+    # Booking form
+    mode = d["book_mode"]
+    dest = ""
+    if mode == "WhatsApp":
+        dest = "".join(c for c in (d["wa_number"] or phone_raw) if c.isdigit())
+        if len(dest) < 8:
+            dest = ""
+    elif mode == "Email":
+        if "@" in email_raw and "." in email_raw:
+            dest = email_raw
+    booking_ok = bool(dest) and mode != "Hide booking form"
+
+    booking_html = ""
+    booking_script = ""
+    if booking_ok:
+        opts = "".join(f"<option>{n}</option>" for n, _ in services)
+        opts += "<option>Not sure yet</option>"
+        via = "WhatsApp" if mode == "WhatsApp" else "email"
+        booking_html = (
+            '<div id="book"><div class="wrap"><h2>Book an appointment</h2>'
+            '<form id="bk" class="bk">'
+            '<input id="bk_name" required placeholder="Your name" autocomplete="name">'
+            '<input id="bk_phone" required type="tel" placeholder="Your phone number" autocomplete="tel">'
+            f'<select id="bk_service">{opts}</select>'
+            '<div class="row"><input id="bk_date" type="date" required>'
+            '<input id="bk_time" type="time" required></div>'
+            '<textarea id="bk_note" rows="3" placeholder="Anything we should know? (optional)"></textarea>'
+            f'<button type="submit" class="send">Send booking request via {via}</button>'
+            '<p class="note">This sends us your request. We will message you to confirm your time.</p>'
+            '</form></div></div>'
         )
-        services_html = (
-            f'<div class="alt" id="services"><div class="wrap"><h2>Our services</h2>'
-            f'<div class="grid">{cards}</div></div></div>'
+        booking_script = (
+            BOOK_JS.replace("__BIZ__", js_str(raw_name))
+            .replace("__DEST__", js_str(dest))
+            .replace("__MODE__", js_str("wa" if mode == "WhatsApp" else "mail"))
         )
 
-    # Gallery
-    gallery_html = ""
-    if gallery_uris:
-        nav_links.append('<a href="#gallery">Gallery</a>')
-        imgs = "".join(
-            f'<img src="{u}" alt="{name} photo {i + 1}" loading="lazy">'
-            for i, u in enumerate(gallery_uris)
-        )
-        gallery_html = (
-            f'<div class="wrap" id="gallery"><h2>Gallery</h2>'
-            f'<div class="gallery">{imgs}</div></div>'
-        )
+    book_url = safe_url(d["booking_url"])
+    book_target = book_url or ("#book" if booking_ok else "")
 
-    # Reviews
-    reviews = []
-    for line in d["reviews"].splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        if ":" in line:
-            who, txt = line.split(":", 1)
-        else:
-            who, txt = "Happy client", line
-        reviews.append((esc(who.strip()), esc(txt.strip())))
-    reviews_html = ""
-    if reviews:
-        nav_links.append('<a href="#reviews">Reviews</a>')
-        cards = "".join(
-            f'<div class="review"><div class="stars">★★★★★</div><p>“{t}”</p><span>{w}</span></div>'
-            for w, t in reviews
-        )
-        reviews_html = (
-            f'<div class="alt" id="reviews"><div class="wrap"><h2>What clients say</h2>'
-            f'<div class="grid">{cards}</div></div></div>'
-        )
-
-    nav_links.append('<a href="#contact">Contact</a>')
-
-    # Hours
-    hours_rows = ""
-    for line in d["hours"].splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        if ":" in line:
-            day, t = line.split(":", 1)
-            hours_rows += f"<div><b>{esc(day.strip())}</b><span>{esc(t.strip())}</span></div>"
-        else:
-            hours_rows += f"<div><span>{esc(line)}</span></div>"
-    hours_html = ("<h3 style='margin-bottom:10px'>Opening hours</h3>" + hours_rows) if hours_rows else ""
-
-    # Contact
-    contact = ""
-    if full_addr:
-        maps = "https://www.google.com/maps/search/?api=1&query=" + quote_plus(full_addr)
-        contact += f'<p>📍 {esc(full_addr)}<br><a href="{maps}">Get directions</a></p>'
+    nav_links = ['<a href="#about">About</a>']
+    hero_btns = ""
+    bar = ""
+    if book_target:
+        hero_btns += f'<a class="btn btn-main" href="{book_target}">Book now</a>'
+        bar += f'<a class="a1" href="{book_target}">Book now</a>'
     if phone_link:
-        contact += f'<p>📞 <a href="tel:{phone_link}">{phone}</a></p>'
-    if email_raw:
-        contact += f'<p>✉️ <a href="mailto:{esc(email_raw, quote=True)}">{esc(email_raw)}</a></p>'
-
-    # Social
-    social = ""
-    ig = safe_url(d["instagram"])
-    fb = safe_url(d["facebook"])
-    if ig:
-        social += f'<a href="{ig}">Instagram</a>'
-    if fb:
-        social += f'<a href="{fb}">Facebook</a>'
-
-    if hero_uri:
-        hero_style = (
-            "background-image:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)),"
-            f"url('{hero_uri}')"
-        )
-    else:
-        hero_style = (
-            "background:radial-gradient(circle at 88% 12%,var(--s),transparent 42%),"
-            "linear-gradient(135deg,var(--dk),var(--p))"
-        )
-
-    ld = {
-        "@context": "https://schema.org",
-        "@type": "LocalBusiness",
-        "name": raw_name,
-        "description": d["tagline"].strip() or default_tag,
-        "telephone": phone_raw,
-        "address": full_addr,
-    }
-    ld = {k: v for k, v in ld.items() if v}
-    jsonld = json.dumps(ld).replace("<", "\\u003c")
-
-    title = f"{raw_name} | {default_tag}"
-    page = TEMPLATE
-    repl = {
-        "__TITLE__": esc(title),
-        "__DESC__": esc(d["tagline"].strip() or default_tag, quote=True),
-        "__JSONLD__": jsonld,
-        "__CPT__": p_text,
-        "__CST__": s_text,
-        "__CONP__": on_color(p),
-        "__CONS__": on_color(s),
-        "__CDK__": dk,
-        "__CBG__": bg,
-        "__CTX__": tx,
-        "__CCARD__": card,
-        "__CSOFT__": soft,
-        "__CBD__": bd,
-        "__CP__": p,
-        "__CS__": s,
-        "__BODYCLASS__": LAYOUTS[d["layout"]],
-        "__NAVLINKS__": "".join(nav_links),
-        "__HEROSTYLE__": hero_style,
-        "__HEROBTNS__": hero_btns,
-        "__ABOUT__": about,
-        "__SERVICES__": services_html,
-        "__GALLERY__": gallery_html,
-        "__REVIEWS__": reviews_html,
-        "__CONTACT__": contact,
-        "__HOURS__": hours_html,
-        "__SOCIAL__": social,
-        "__BAR__": bar,
-        "__YEAR__": str(datetime.now().year),
-        "__TAGLINE__": tagline,
-        "__NAME__": name,
-    }
-    for k, v in repl.items():
-        page = page.replace(k, v)
-    return page
-
-
-st.markdown('<div class="hero">CLIPORA AI</div>', unsafe_allow_html=True)
-st.caption("Clip it. Create it. Build it.")
-
-tab1, tab2, tab3 = st.tabs(
-    ["✂️ AI Clipper", "🎥 AI Video Generator", "🌐 AI Website Builder"]
-)
-
-with tab1:
-    st.header("AI Clipper")
-    st.markdown(
-        '<div class="card">Upload a video. Automatic clipping is added later.</div>',
-        unsafe_allow_html=True,
-    )
-    uploaded = st.file_uploader(
-        "Upload your video", type=["mp4", "mov", "m4v", "webm"]
-    )
-    if uploaded is not None:
-        size_mb = uploaded.size / (1024 * 1024)
-        st.success(f"Received: {uploaded.name} ({size_mb:.1f} MB)")
-        st.video(uploaded)
-
-with tab2:
-    st.header("AI Video Generator")
-    st.markdown(
-        '<div class="card">Turn a text idea into a finished video. Coming later.</div>',
-        unsafe_allow_html=True,
-    )
-
-with tab3:
-    st.header("AI Website Builder")
-    st.markdown(
-        '<div class="card">Fill in the details, pick a design, add photos, tap '
-        "Generate, preview the site, then download it. Only use photos the "
-        "business owner gave you or that are yours.</div>",
-        unsafe_allow_html=True,
-    )
-
-    with st.form("site_form"):
-        st.subheader("Design")
-        layout = st.selectbox("Layout", list(LAYOUTS.keys()))
-        palette = st.selectbox("Colour palette", list(PALETTES.keys()) + ["Custom"])
-        custom_p = st.color_picker("Custom main colour (used if palette = Custom)", "#be185d")
-        custom_s = st.color_picker("Custom second colour (used if palette = Custom)", "#d97706")
-        dark = st.checkbox("Dark mode website")
-
-        st.subheader("Business details")
-        name = st.text_input("Business name *", placeholder="Rose Beauty Salon")
-        biz_type = st.selectbox(
-            "Business type",
-            ["Beauty salon", "Nail salon", "Barber shop", "Restaurant",
-             "Cafe", "Online store", "Portfolio", "Other business"],
-        )
-        tagline = st.text_input(
-            "Tagline (short line under the name)",
-            placeholder="Beautiful nails, made with care",
-        )
-        city = st.text_input("City", placeholder="Melbourne")
-        address = st.text_input("Street address", placeholder="12 Example Street")
-        phone = st.text_input("Phone number", placeholder="+61 400 000 000")
-        email = st.text_input("Email (optional)")
-        about = st.text_area("About the business (optional)")
-        services = st.text_area(
-            "Services with prices (one per line, use  -  between name and price)",
-            placeholder="Gel manicure - $45\nPedicure - $60\nAcrylic full set - $70",
-        )
-        hours = st.text_area(
-            "Opening hours (one per line)",
-            placeholder="Mon-Fri: 9am-6pm\nSat: 10am-4pm\nSun: Closed",
-        )
-        reviews = st.text_area(
-            "Real client reviews (optional, one per line, like  Sarah: Loved it!)"
-        )
-        booking_url = st.text_input("Booking link (optional, starts with https://)")
-        instagram = st.text_input("Instagram link (optional)")
-        facebook = st.text_input("Facebook link (optional)")
-        hero_file = st.file_uploader(
-            "Main banner photo (optional)", type=["jpg", "jpeg", "png", "webp"]
-        )
-        gallery_files = st.file_uploader(
-            "Gallery photos (optional, up to 6)",
-            type=["jpg", "jpeg", "png", "webp"],
-            accept_multiple_files=True,
-        )
-        submitted = st.form_submit_button("Generate website")
-
-    if submitted:
-        if not name.strip():
-            st.warning("Please type the business name first.")
-        else:
-            try:
-                hero_uri = img_to_data_uri(hero_file) if hero_file else ""
-                gallery_uris = [img_to_data_uri(f) for f in (gallery_files or [])[:6]]
-                data = dict(
-                    layout=layout, palette=palette, custom_p=custom_p,
-                    custom_s=custom_s, dark=dark, name=name, biz_type=biz_type,
-                    tagline=tagline, city=city, address=address, phone=phone,
-                    email=email, about=about, services=services, hours=hours,
-                    reviews=reviews, booking_url=booking_url,
-                    instagram=instagram, facebook=facebook,
-                )
-                st.session_state["site"] = build_site(data, hero_uri, gallery_uris)
-            except Exception as e:
-                st.error(f"Something went wrong: {e}")
-
-    if "site" in st.session_state:
-        st.subheader("Preview")
-        components.html(st.session_state["site"], height=800, scrolling=True)
-        st.download_button(
-            "Download website (index.html)",
-            data=st.session_state["site"],
-            file_name="index.html",
-            mime="text/html",
-        )
+        hero_btns += f'<a class="btn btn-alt" href="tel:{phone_link}">Call {phone}</a>'
+        bar += f'<a class="a2" href="tel:{phone_link}">Call now</a>'
+    if not hero_btns:
+        hero_btns = '
